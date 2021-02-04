@@ -1,0 +1,85 @@
+---
+title: "Beer Shiny App"
+author: "senglerth"
+date: "2/4/2021"
+output: html_document
+runtime: shiny
+---
+
+
+```{r echo = FALSE}
+
+library(shiny)
+
+ui <- fluidPage(
+  
+  # App title ----
+  titlePanel("Beer Data App"),
+  
+  # Sidebar layout with input and output definitions ----
+  sidebarLayout(
+    
+    # Sidebar panel for inputs ----
+    sidebarPanel(
+      
+      sliderInput(inputId = "bins",
+                  label = "Number of bins:",
+                  min = 1,
+                  max = 50,
+                  value = 30),
+      #Input: Slider for the number of bins ----
+         selectInput("select", label = h3("IBU or ABV"), 
+                    choices = list("IBU" = "IBU", "ABV" = "ABV"), 
+                    selected = 1),
+                    hr(),
+                    fluidRow(column(3, verbatimTextOutput("value")))
+    ),
+       
+    # Main panel for displaying outputs ----
+    mainPanel(
+      
+      # Output: Histogram ----
+      plotOutput(outputId = "distPlot"))))
+      
+
+
+# Define server logic required to draw a histogram ----
+server <- function(input, output) {
+library(knitr)
+library(dplyr)
+library(tidyverse)
+
+
+Beers <- read_csv("Beers.csv")
+Breweries <- read_csv("Breweries.csv")
+BeersBreweries=merge(Beers,Breweries,by.x = "Brewery_id",by.y = "Brew_ID")
+BeersBreweries [BeersBreweries==""]<- NA  
+IBUClean <-BeersBreweries %>% filter(!is.na(IBU))
+ABVClean <- BeersBreweries %>% filter(!is.na(ABV))
+
+    output$distPlot <- renderPlot({
+    
+    if(input$select == "IBU")
+    {
+    x    <- IBUClean$IBU
+    bins <- seq(min(x), max(x), length.out = input$bins + 1)
+    hist(x, breaks = bins, col = "#75AADB", border = "white",
+         xlab = "IBU",
+         main = "Histogram of IBU ")
+    }
+    if(input$select == "ABV")
+    {
+    y    <- ABVClean$ABV
+    bins <- seq(min(y), max(y), length.out = input$bins + 1)
+    hist(y, breaks=bins, col = "#75AADB", border = "white",
+         xlab = "ABV",
+         main = "Histogram of ABV")
+    }
+  })
+  
+}
+
+shinyApp(ui, server)
+
+
+```

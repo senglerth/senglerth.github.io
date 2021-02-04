@@ -1,0 +1,13 @@
+name: ShinyApp
+title: ShinyApp
+username:
+account: senglerth
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3584986
+bundleId: 4182411
+url: https://senglerth.shinyapps.io/ShinyApp/
+when: 1612478194.06007
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: _site.yml|.RData|aboutme.html|aboutme.Rmd|Beers.csv|Breweries.csv|index.html|index.Rmd|Project1.html|README.md|site_libs

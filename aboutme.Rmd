@@ -11,7 +11,7 @@ output: html_document
 
 ## Hometown: Munich, Germany
 
-## Interests: Data Science and Sports
+## Interests: Data Science & Sports
 
 ## Work Experience: CPA and former Tax Accountant at KPMG
 

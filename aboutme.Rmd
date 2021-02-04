@@ -1,0 +1,18 @@
+---
+title: "aboutme"
+author: "Senglerth"
+date: "2/4/2021"
+output: html_document
+---
+
+# About Me
+
+## My Name: Scott Englerth
+
+## Hometown: Munich, Germany
+
+## Interests: Data Science and Sports
+
+## Work Experience: CPA and former Tax Accountant at KPMG
+
+## Education: Bachelors in Finance & Economic, Masters in Accounting and Masters in Data Science all at SMU (Souther Methodist)

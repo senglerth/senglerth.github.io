@@ -1,0 +1,345 @@
+---
+title: "Project2"
+author: "Senglerth"
+date: "2/20/2021"
+output: html_document
+---
+
+# Libraries Used and Source Data
+```{r Libraries and Source Data}
+###Libraries used
+library(knitr)
+library(dplyr)
+library(tidyverse)
+library(corrplot)
+library(class)
+library(caret)
+library(e1071)
+library(Metrics)
+library(ggplot2)
+library(readxl)
+library(xlsx)
+###reading in data 
+CaseStudy2 <- read_csv("CaseStudy2-data.csv")
+```
+
+# Inital EDA - see plots used further down below 
+```{r EDA}
+
+CaseStudy2AY <- CaseStudy2 %>% filter(Attrition == "Yes")
+CaseStudy2AN <- CaseStudy2 %>% filter(Attrition == "No")
+summary(CaseStudy2AY)
+summary(CaseStudy2AN)
+
+#Data Transformation of categorical variables into numerical
+CaseStudy2$AttritionN<-ifelse(CaseStudy2$Attrition =="Yes",1,0)
+CaseStudy2$GenderN<-ifelse(CaseStudy2$Gender =="Female",1,0)
+CaseStudy2$Over18N<-ifelse(CaseStudy2$Over18 =="Y",1,0)
+CaseStudy2$OverTimeN<-ifelse(CaseStudy2$OverTime =="Yes",1,0)
+CaseStudy2$BusinessTravelN<-ifelse(CaseStudy2$BusinessTravel =="Travel_Frequently",3,ifelse(CaseStudy2$BusinessTravel =="Travel_Rarely",2,1))
+CaseStudy2
+
+CaseStudy2AY <- CaseStudy2 %>% filter(Attrition == "Yes")
+CaseStudy2AN <- CaseStudy2 %>% filter(Attrition == "No")
+summary(CaseStudy2AY)
+summary(CaseStudy2AN)
+```
+
+# Analysis Covariance
+```{r Covariance}
+
+CaseStudy2Cov <- CaseStudy2[,c(2,5,7,8,10,11,12,14,15,16,18,20,21,22,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41)]
+CaseStudy2CovMatrix <- as.dist(round(cor(CaseStudy2Cov[,1:31]),2))
+CaseStudy2CovMatrix 
+```
+
+#KNN and Naive Bayes
+```{r KNN}
+
+#Intial attempt using factors with higher covariance scores from inital analysis- process was adjust re-ran multiple times with various variables
+CaseStudy2KNN <- CaseStudy2[,c(2,3,7,12,15,16,18,20,29,30,32,34,36,40,41)]
+
+
+CaseStudy2KNN$Z_JI = scale(CaseStudy2KNN$JobInvolvement)
+CaseStudy2KNN$Z_JS = scale(CaseStudy2KNN$JobSatisfaction)
+CaseStudy2KNN$Z_MI = scale(CaseStudy2KNN$MonthlyIncome)
+CaseStudy2KNN$Z_SOL = scale(CaseStudy2KNN$StockOptionLevel)
+CaseStudy2KNN$Z_TWY = scale(CaseStudy2KNN$TotalWorkingYears)
+CaseStudy2KNN$Z_OT = scale(CaseStudy2KNN$OverTimeN)
+CaseStudy2KNN$Z_Age = scale(CaseStudy2KNN$Age)
+CaseStudy2KNN$Z_JL = scale(CaseStudy2KNN$JobLevel)
+CaseStudy2KNN$Z_YICR = scale(CaseStudy2KNN$YearsInCurrentRole)
+CaseStudy2KNN$Z_YWCM = scale(CaseStudy2KNN$YearsWithCurrManager)
+CaseStudy2KNN$Z_ES = scale(CaseStudy2KNN$EnvironmentSatisfaction)
+CaseStudy2KNN$Z_WLB = scale(CaseStudy2KNN$WorkLifeBalance)
+CaseStudy2KNN$Z_DFH = scale(CaseStudy2KNN$DistanceFromHome)
+CaseStudy2KNN$Z_BT = scale(CaseStudy2KNN$BusinessTravelN)
+
+#optimizing k
+set.seed(1)
+iterations = 100
+numks = 25
+splitPerc = .80
+
+masterSpec = matrix(nrow = iterations, ncol = numks)
+
+for(j in 1:iterations)
+{
+  trainIndices = sample(1:dim(CaseStudy2KNN)[1],round(splitPerc * dim(CaseStudy2KNN)[1]))
+  train = CaseStudy2KNN[trainIndices,]
+  test = CaseStudy2KNN[-trainIndices,]
+  for(i in 1:numks)
+  {
+    classifications = knn(train[,c(16,17,18,19,20,22,23,24,25,26,27,28,29)],test[,c(16,17,18,19,20,22,23,24,25,26,27,28,29)],train$Attrition, prob = TRUE, k = i)
+    table(classifications,test$Attrition)
+    CM = confusionMatrix(table(classifications,test$Attrition))
+    masterSpec[j,i] = CM$byClass[2]
+  }
+  
+}
+
+MeanSpec = colMeans(masterSpec)
+
+plot(seq(1,numks,1),MeanSpec, type = "l")
+
+which.max(MeanSpec)
+max(MeanSpec)
+
+trainIndices = sample(1:dim(CaseStudy2KNN)[1],round(splitPerc * dim(CaseStudy2KNN)[1]))
+train = CaseStudy2KNN[trainIndices,]
+test = CaseStudy2KNN[-trainIndices,]
+classifications = knn(train[,c(8,9,10,11,12,13)],test[,c(8,9,10,11,12,13)],train$Attrition,prob = TRUE, k = 3)
+confusionMatrix(table(classifications,test$Attrition))
+
+#Since the KNN model had too low of a specificity score, we are attempting Naive Bayes
+modelTB = naiveBayes(train[,c(16,17,18,19,20,21,22,23,24,25,26,27,28,29)],as.factor(train$Attrition),laplace = 1)
+table(predict(modelTB,test[c(16,17,18,19,20,21,22,23,24,25,26,27,28,29)]),as.factor(test$Attrition))
+CM = confusionMatrix(table(predict(modelTB,test[,c(16,17,18,19,20,22,23,24,25,26,27,28,29)]),as.factor(test$Attrition)))
+CM
+
+#Running Anova analysis on the inital factors indentified
+aovecon <- aov(AttritionN ~ Age + DistanceFromHome + EnvironmentSatisfaction + JobInvolvement + JobLevel +JobSatisfaction +MonthlyIncome+ StockOptionLevel +TotalWorkingYears + WorkLifeBalance + YearsInCurrentRole + YearsWithCurrManager +OverTimeN +BusinessTravelN, data = CaseStudy2)
+
+## KNN and Naive Bayes attempt #2 with less/ new&consolidated variables
+
+CaseStudy2['JobHappiness']=CaseStudy2['JobInvolvement']+CaseStudy2['JobSatisfaction']
+CaseStudy2['TravelComp']=CaseStudy2['MonthlyIncome']/(CaseStudy2['DistanceFromHome'])
+CaseStudy2['TimeToLeave']=((CaseStudy2['TotalWorkingYears']-CaseStudy2['YearsAtCompany'])/CaseStudy2['NumCompaniesWorked'])
+
+CaseStudy2KNN2 <- CaseStudy2[,c(3,5,29,30,36,40,42,43,44)]
+CaseStudy2KNN2$Z_YWC = scale(CaseStudy2KNN2$YearsWithCurrManager)
+CaseStudy2KNN2$Z_OT = scale(CaseStudy2KNN2$OverTimeN)
+CaseStudy2KNN2$Z_JH = scale(CaseStudy2KNN2$JobHappiness)
+CaseStudy2KNN2$Z_TC = scale(CaseStudy2KNN2$TravelComp)
+CaseStudy2KNN2$Z_SOL = scale(CaseStudy2KNN2$StockOptionLevel)
+CaseStudy2KNN2$Z_TWY = scale(CaseStudy2KNN2$TotalWorkingYears)
+CaseStudy2KNN2$Z_DR = scale(CaseStudy2KNN2$DailyRate)
+CaseStudy2KNN2$Z_TTL = scale(CaseStudy2KNN2$TimeToLeave)
+
+trainIndices = sample(1:dim(CaseStudy2KNN2)[1],round(splitPerc * dim(CaseStudy2KNN2)[1]))
+train = CaseStudy2KNN2[trainIndices,]
+test = CaseStudy2KNN2[-trainIndices,]
+modelTB = naiveBayes(train[,c(10,11,12,13,14,15,16)],as.factor(train$Attrition),laplace = 3)
+table(predict(modelTB,test[c(10,11,12,13,14,15,16)]),as.factor(test$Attrition))
+CM4 = confusionMatrix(table(predict(modelTB,test[,c(10,11,12,13,14,15,16)]),as.factor(test$Attrition)))
+CM4
+
+##Re-attempt with all original numerical values as well as newly created ones
+trainIndices = sample(1:dim(CaseStudy2)[1],round(splitPerc * dim(CaseStudy2)[1]))
+train = CaseStudy2[trainIndices,]
+test = CaseStudy2[-trainIndices,]
+modelTB4 = naiveBayes(train[,c(2,5,7,8,12,14,15,16,18,20,21,22,25,26,27,28,29,30,31,32,33,34,35,36,38,39,40,41,42,43)],as.factor(train$Attrition),laplace = 3)
+table(predict(modelTB4,test[c(2,5,7,8,12,14,15,16,18,20,21,22,25,26,27,28,29,30,31,32,33,34,35,36,38,39,40,41,42,43)]),as.factor(test$Attrition))
+CM4 = confusionMatrix(table(predict(modelTB4,test[,c(2,5,7,8,12,14,15,16,18,20,21,22,25,26,27,28,29,30,31,32,33,34,35,36,38,39,40,41,42,43)]),as.factor(test$Attrition)))
+CM4
+
+
+## Problem 2 - Montly Income Regression Analysis
+
+fit = lm(MonthlyIncome~JobLevel, data=CaseStudy2)
+summary(fit)
+confint(fit)
+mse<-mean(residuals(fit)^2)
+mse
+rmse<-sqrt(mse)
+rmse
+
+fit2 = lm(MonthlyIncome~JobLevel*YearsInCurrentRole, data=CaseStudy2)
+summary(fit2)
+confint(fit2)
+mse<-mean(residuals(fit2)^2)
+mse
+rmse<-sqrt(mse)
+rmse
+
+fit3 = lm(MonthlyIncome~JobLevel*YearsInCurrentRole+TotalWorkingYears, data=CaseStudy2)
+summary(fit3)
+confint(fit3)
+mse<-mean(residuals(fit3)^2)
+mse
+rmse<-sqrt(mse)
+rmse
+```
+
+#Meaningful Visulisations from the inital EDA used for presentation
+```{r GGplots}
+
+##Viusalisations for Attrition EDA
+#Overall Attrition
+ggplot(CaseStudy2, aes(Attrition)) +
+  geom_bar(position = "dodge", aes(y=(..count..)/sum(..count..), fill=Attrition)) + 
+  scale_y_continuous(labels=scales::percent) +
+  ylab("Realtive percentage of employees ") +
+  xlab("Attriton") +
+  geom_text(aes(label = scales::percent((..count..)/sum(..count..)), y=(..count..)/sum(..count..)), stat= "count",vjust =-.5)+
+  scale_fill_brewer(palette="Set1")
+#Attrition by Job Level
+ggplot(CaseStudy2,aes(x=Attrition,group=JobLevel))+
+  geom_bar(aes(y=..prop..,fill=factor(..x..)),stat="count")+
+  facet_grid(~JobLevel)+
+  theme(axis.text.x=element_text(angle=90,vjust=0.5),legend.position="none",plot.title=element_text(size=16,hjust=0.5))+
+  labs(x="Attrition",y="Percentage",title="Job Level Vs Attrition %")+
+  geom_text(aes(label = scales::percent(..prop..), y = ..prop.. ),stat= "count",vjust =-.5) +
+  scale_fill_brewer(palette="Set1")
+
+chisq.test(CaseStudy2$JobLevel, CaseStudy2$Attrition)
+#Attrition with Current Manager
+ggplot(CaseStudy2, aes(YearsWithCurrManager, color=Attrition, fill=Attrition)) +
+  geom_density() +
+  labs(title = "YearsWithCurrManager vs. Attrition")+
+  scale_fill_brewer(palette="Set1")
+ggplot(CaseStudy2, aes(x=Attrition, YearsWithCurrManager, color=Attrition)) +
+  geom_boxplot() +
+  scale_color_manual(values=c("#CB181D", "#2171B5"))
+
+wilcox.test(YearsWithCurrManager ~ Attrition, data=CaseStudy2)
+
+#Attrition for Job Happiness
+ggplot(CaseStudy2, aes(JobHappiness, color=Attrition, fill=Attrition)) +
+  geom_density() +
+  labs(title = "YearsWithCurrManager vs. Job Happiness")+
+  scale_fill_brewer(palette="Set1")
+ggplot(CaseStudy2, aes(x=Attrition, JobHappiness, color=Attrition)) +
+  geom_boxplot() +
+  scale_color_manual(values=c("#CB181D", "#2171B5"))
+
+wilcox.test(JobHappiness ~ Attrition, data=CaseStudy2)
+
+#Attrition by Overtime
+CaseStudy2AN <- CaseStudy2AN %>% 
+  group_by(OverTime) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(per=`n`/sum(`n`)) %>% 
+  arrange(desc(OverTime))
+CaseStudy2AN$label <- scales::percent(CaseStudy2AN$per)
+ggplot(data=CaseStudy2AN)+
+  geom_bar(aes(x="", y=per, fill=OverTime), stat="identity", width = 1)+
+  coord_polar("y", start=0)+
+  theme_void()+
+  geom_text(aes(x=1, y = cumsum(per) - per/2, label=label))
+
+CaseStudy2AY <- CaseStudy2AY %>% 
+  group_by(OverTime) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(per=`n`/sum(`n`)) %>% 
+  arrange(desc(OverTime))
+CaseStudy2AY$label <- scales::percent(CaseStudy2AY$per)
+ggplot(data=CaseStudy2AY)+
+  geom_bar(aes(x="", y=per, fill=OverTime), stat="identity", width = 1)+
+  coord_polar("y", start=0)+
+  theme_void()+
+  geom_text(aes(x=1, y = cumsum(per) - per/2, label=label))
+
+chisq.test(CaseStudy2$OverTime, CaseStudy2$Attrition)
+
+##Income per Travel
+ggplot(CaseStudy2, aes(TravelComp, color=Attrition, fill=Attrition)) +
+  geom_density() +
+  labs(title = "YearsWithCurrManager vs. Travel Compensation")+
+  scale_fill_brewer(palette="Set1")
+ggplot(CaseStudy2, aes(x=Attrition, TravelComp, color=Attrition)) +
+  geom_boxplot() +
+  scale_color_manual(values=c("#CB181D", "#2171B5"))
+
+wilcox.test(TravelComp ~ Attrition, data=CaseStudy2)
+
+##Monthly Income vs Attrition
+ggplot(CaseStudy2, aes(MonthlyIncome, color=Attrition, fill=Attrition)) +
+  geom_density() +
+  labs(title = "YearsWithCurrManager vs. Monthly Income")+
+  scale_fill_brewer(palette="Set1")
+ggplot(CaseStudy2, aes(x=Attrition, MonthlyIncome, color=Attrition)) +
+  geom_boxplot() +
+  scale_color_manual(values=c("#CB181D", "#2171B5"))
+
+wilcox.test(MonthlyIncome ~ Attrition, data=CaseStudy2)
+
+##Monthly Income by Job Level
+
+JobLevelIncome<-CaseStudy2 %>% 
+  group_by(JobLevel) %>% 
+ summarize(mean_MonthlyIncome = round(mean(MonthlyIncome, na.rm = TRUE)))
+ggplot(data=JobLevelIncome,aes(x=JobLevel, y=mean_MonthlyIncome))+
+  geom_bar(stat="identity", width = 0.5, fill="steelblue")+
+ geom_text(aes(label=mean_MonthlyIncome), vjust=1.6, color="white", size=3.5)+
+  theme_minimal()
+
+#Income by Years in role
+YearsInRoleIncome<-CaseStudy2 %>% 
+  group_by(YearsInCurrentRole) %>% 
+ summarize(mean_MonthlyIncome = round(mean(MonthlyIncome, na.rm = TRUE)))
+ggplot(data=YearsInRoleIncome,aes(x=YearsInCurrentRole, y=mean_MonthlyIncome))+
+  geom_bar(stat="identity", width = 0.75, fill="steelblue")+
+ geom_text(aes(label=mean_MonthlyIncome), vjust=1.6, color="white", size=3.5)+
+  theme_minimal()
+
+#Income by total working years
+ggplot(data=CaseStudy2,aes(x=TotalWorkingYears, y=MonthlyIncome,shape=Department, color=Department))+
+  geom_point()+geom_smooth(method=lm)
+
+ggplot(data=CaseStudy2,aes(x=TotalWorkingYears, y=MonthlyIncome,shape=Gender, color=Gender))+
+  geom_point()+geom_smooth(method=lm)
+
+ggplot(data=CaseStudy2,aes(x=TotalWorkingYears, y=MonthlyIncome,shape=JobRole, color=JobRole))+
+  geom_point()+geom_smooth(method=lm)
+
+ggplot(data=CaseStudy2,aes(x=TotalWorkingYears, y=MonthlyIncome,shape=as.factor(JobLevel), color=as.factor(JobLevel)))+
+  geom_point()+geom_smooth(method=lm)
+```
+
+#Data Predictions
+```{r predictions}
+
+CaseStudy2Att <- read_csv("CaseStudy2CompSet No Attrition.csv")
+CaseStudy2Att$AttritionN<-ifelse(CaseStudy2Att$Attrition =="Yes",1,0)
+CaseStudy2Att$GenderN<-ifelse(CaseStudy2Att$Gender =="Female",1,0)
+CaseStudy2Att$Over18N<-ifelse(CaseStudy2Att$Over18 =="Y",1,0)
+CaseStudy2Att$OverTimeN<-ifelse(CaseStudy2Att$OverTime =="Yes",1,0)
+CaseStudy2Att$BusinessTravelN<-ifelse(CaseStudy2Att$BusinessTravel =="Travel_Frequently",3,ifelse(CaseStudy2Att$BusinessTravel =="Travel_Rarely",2,1))
+CaseStudy2Att['JobHappiness']=CaseStudy2Att['JobInvolvement']+CaseStudy2Att['JobSatisfaction']
+CaseStudy2Att['TravelComp']=CaseStudy2Att['MonthlyIncome']/(CaseStudy2Att['DistanceFromHome'])
+CaseStudy2Att['TimeToLeave']=((CaseStudy2Att['TotalWorkingYears']-CaseStudy2Att['YearsAtCompany'])/CaseStudy2Att['NumCompaniesWorked'])
+
+
+CaseStudy2Att$Attrition<- predict(modelTB4,CaseStudy2Att[c(2,4,6,7,11,13,14,15,17,19,20,21,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41)] , type = "class")
+CaseStudy2AYAtt <- CaseStudy2Att %>% filter(Attrition == "Yes")
+CaseStudy2ANAtt <- CaseStudy2Att %>% filter(Attrition == "No")
+summary(CaseStudy2AYAtt)
+summary(CaseStudy2ANAtt)
+
+Case2Prediction<-CaseStudy2Att[c(1,43)]
+write.csv(Case2Prediction,"/Users/scottenglerth/Desktop/SMU MSDS/Term 1 Winter 2020/6371 Statistics Foundations/Project/AttrittionProject/Case2PredictionsEnglerth Attrition.csv", row.names = FALSE)
+
+
+CaseStudy2Sal <- read_excel("CaseStudy2CompSet No Salary.xlsx")
+CaseStudy2Sal$MonthyIncome <- predict(fit3,CaseStudy2Sal)
+summary(CaseStudy2Sal)
+Case2PredictionSal<-CaseStudy2Sal[c(1,36)]
+write.csv(Case2PredictionSal,"/Users/scottenglerth/Desktop/SMU MSDS/Term 1 Winter 2020/6371 Statistics Foundations/Project/AttrittionProject/Case2PredictionsEnglerth Salary.csv", row.names = FALSE)
+```
+
+#Youtube Link
+```{r Youtube Link}
+Placeholder
